@@ -23,11 +23,12 @@
 //#define SONOS_WRITE_ONLY_MODE
 
 #include "Arduino.h"
-#include "avr/pgmspace.h"
+//#include "avr/pgmspace.h"
+#include "pgmspace.h"
 #ifndef SONOS_WRITE_ONLY_MODE
-#include "../../MicroXPath/src/MicroXPath_P.h"
+#include "MicroXPath_P.h"
 #endif
-#include "../../Ethernet/src/EthernetClient.h"
+#include <ESP8266WiFi.h>
 
 // HTTP:
 #define HTTP_VERSION " HTTP/1.1\n"
@@ -276,7 +277,7 @@ class SonosUPnP
 
   public:
 
-    SonosUPnP(EthernetClient client, void (*ethernetErrCallback)(void));
+    SonosUPnP(WiFiClient client, void (*ethernetErrCallback)(void));
 
     void setAVTransportURI(IPAddress speakerIP, const char *scheme, const char *address);
     void seekTrack(IPAddress speakerIP, uint16_t index);
@@ -337,7 +338,7 @@ class SonosUPnP
 
   private:
 
-    EthernetClient ethClient;
+    WiFiClient ethClient;
 
     void (*ethernetErrCallback)(void);
     void seek(IPAddress speakerIP, const char *mode, const char *data);
@@ -366,3 +367,12 @@ class SonosUPnP
 };
 
 #endif
+
+//#ifdef ESP8266  //has no strlcpy_P
+
+/* size_t ICACHE_FLASH_ATTR strlcpy_P(char* dest, const char* src, size_t size) {
+    const char* read = src;
+    char* write = dest;
+
+*/
+

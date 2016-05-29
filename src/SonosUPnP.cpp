@@ -109,7 +109,7 @@ const char p_GetTransportInfoA[] PROGMEM = SONOS_TAG_GET_TRANSPORT_INFO;
 const char p_GetTransportInfoR[] PROGMEM = SONOS_TAG_GET_TRANSPORT_INFO_RESPONSE;
 const char p_CurrentTransportState[] PROGMEM = SONOS_TAG_CURRENT_TRANSPORT_STATE;
 
-SonosUPnP::SonosUPnP(EthernetClient client, void (*ethernetErrCallback)(void))
+SonosUPnP::SonosUPnP(WiFiClient client, void (*ethernetErrCallback)(void))
 {
   #ifndef SONOS_WRITE_ONLY_MODE
   this->xPath = MicroXPath_P();
@@ -172,7 +172,8 @@ void SonosUPnP::playFile(IPAddress speakerIP, const char *path)
 
 void SonosUPnP::playHttp(IPAddress speakerIP, const char *address)
 {
-  setAVTransportURI(speakerIP, SONOS_SOURCE_HTTP_SCHEME, address);
+  // "x-sonos-http:" does not work for me etAVTransportURI(speakerIP, SONOS_SOURCE_HTTP_SCHEME, address);
+  setAVTransportURI(speakerIP, "", address);
   play(speakerIP);
 }
 
@@ -597,7 +598,11 @@ void SonosUPnP::upnpSet(IPAddress ip, uint8_t upnpMessageType, PGM_P action_P, c
 
 bool SonosUPnP::upnpPost(IPAddress ip, uint8_t upnpMessageType, PGM_P action_P, const char *field, const char *valueA, const char *valueB, PGM_P extraStart_P, PGM_P extraEnd_P, const char *extraValue)
 {
-  if (!ethClient.connect(ip, UPNP_PORT)) return false;
+  if (!ethClient.connect(ip, UPNP_PORT)) 
+ {
+  Serial.println("we did´nt got a connection");
+  return false;
+  }
   
   // Get UPnP service name
   PGM_P upnpService = getUpnpService(upnpMessageType);
@@ -634,7 +639,7 @@ bool SonosUPnP::upnpPost(IPAddress ip, uint8_t upnpMessageType, PGM_P action_P, 
       strlen_P(extraEnd_P);
   }
 
-  char buffer[50];
+  char buffer[1400];
 
   // Write HTTP start
   ethClient_write("POST ");
@@ -721,18 +726,24 @@ PGM_P SonosUPnP::getUpnpEndpoint(uint8_t upnpMessageType)
 
 void SonosUPnP::ethClient_write(const char *data)
 {
-  //Serial.print(data);
+  Serial.println(data);
   ethClient.print(data);
 }
 
+
+//ToDo ESP8266 brings its own write_P, we better use this one
 void SonosUPnP::ethClient_write_P(PGM_P data_P, char *buffer, size_t bufferSize)
 {
   uint16_t dataLen = strlen_P(data_P);
   uint16_t dataPos = 0;
   while (dataLen > dataPos)
-  {
-    strlcpy_P(buffer, data_P + dataPos, bufferSize);
-    //Serial.print(buffer);
+  {	
+	//  *((char *)mempcpy(dst, src, n)) = '\0'; 
+   //https://en.wikibooks.org/wiki/C_Programming/C_Reference/nonstandard/strlcpy
+   //memcpy_P(buffer, data_P + dataPos, bufferSize); 
+   strncpy_P(buffer, data_P + dataPos, bufferSize);
+    //strlcpy_P(buffer, data_P + dataPos, bufferSize);
+    Serial.println(buffer);
     ethClient.print(buffer);
     dataPos += bufferSize - 1;
   }
