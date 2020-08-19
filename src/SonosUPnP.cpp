@@ -764,7 +764,17 @@ void SonosUPnP::ethClient_stop()
 void SonosUPnP::ethClient_xPath(PGM_P *path, uint8_t pathSize, char *resultBuffer, size_t resultBufferSize)
 {
   xPath.setPath(path, pathSize);
-  while (ethClient.available() && !xPath.getValue(ethClient.read(), resultBuffer, resultBufferSize));
+  while (ethClient.connected() || ethClient.available()) {
+	if(!ethClient.available()) {
+		// We are still connected but have no data available - the sonos device is busy.
+		// Wait for data to become available.
+		delay(1);
+		continue;
+	}
+	// If we found the value, stop processing data.
+	if(xPath.getValue(ethClient.read(), resultBuffer, resultBufferSize))
+		break;
+  }
 }
 
 void SonosUPnP::upnpGetString(IPAddress speakerIP, uint8_t upnpMessageType, PGM_P action_P, const char *field, const char *value, PGM_P *path, uint8_t pathSize, char *resultBuffer, size_t resultBufferSize)
