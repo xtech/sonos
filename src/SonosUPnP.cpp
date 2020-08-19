@@ -70,6 +70,8 @@ const char p_GetPositionInfoA[] PROGMEM = SONOS_TAG_GET_POSITION_INFO;
 const char p_GetPositionInfoR[] PROGMEM = SONOS_TAG_GET_POSITION_INFO_RESPONSE;
 const char p_Track[] PROGMEM = SONOS_TAG_TRACK;
 const char p_TrackDuration[] PROGMEM = SONOS_TAG_TRACK_DURATION;
+const char p_TrackMetadata[] PROGMEM = SONOS_TAG_TRACK_METADATA;
+
 const char p_TrackURI[] PROGMEM = SONOS_TAG_TRACK_URI;
 const char p_RelTime[] PROGMEM = SONOS_TAG_REL_TIME;
 
@@ -113,6 +115,7 @@ SonosUPnP::SonosUPnP(WiFiClient client, void (*ethernetErrCallback)(void))
 {
   #ifndef SONOS_WRITE_ONLY_MODE
   this->xPath = MicroXPath_P();
+  this->xPath2 = MicroXPath_P();
   #endif
   this->ethClient = client;
   this->ethernetErrCallback = ethernetErrCallback;
@@ -383,21 +386,33 @@ bool SonosUPnP::getShuffle(IPAddress speakerIP)
   return getPlayMode(speakerIP) & SONOS_PLAY_MODE_SHUFFLE;
 }
 
-TrackInfo SonosUPnP::getTrackInfo(IPAddress speakerIP, char *uriBuffer, size_t uriBufferSize)
+TrackInfo SonosUPnP::getTrackInfo(IPAddress speakerIP, char *uriBuffer, size_t uriBufferSize, char *titleBuffer, size_t titleBufferSize)
 {
   TrackInfo trackInfo;
   if (upnpPost(speakerIP, UPNP_AV_TRANSPORT, p_GetPositionInfoA, "", "", "", 0, 0, ""))
   {
     xPath.reset();
-    char infoBuffer[20] = "";
+ 	char infoBuffer[20] = "";
+	
+	// 1k storage for meta xml
+	size_t metaSize = 1024;
+	char *metaBuffer = (char*) malloc(metaSize);
+	
+	
     // Track number
     PGM_P npath[] = { p_SoapEnvelope, p_SoapBody, p_GetPositionInfoR, p_Track };
     ethClient_xPath(npath, 4, infoBuffer, sizeof(infoBuffer));
     trackInfo.number = atoi(infoBuffer);
     // Track duration
-    PGM_P dpath[] = { p_SoapEnvelope, p_SoapBody, p_GetPositionInfoR, p_TrackDuration };
+	PGM_P dpath[] = { p_SoapEnvelope, p_SoapBody, p_GetPositionInfoR, p_TrackDuration };
     ethClient_xPath(dpath, 4, infoBuffer, sizeof(infoBuffer));
     trackInfo.duration = getTimeInSeconds(infoBuffer);
+	
+	// Track MetaData
+    PGM_P mpath[] = { p_SoapEnvelope, p_SoapBody, p_GetPositionInfoR, p_TrackMetadata };
+    ethClient_xPath(mpath, 4, metaBuffer, metaSize);
+    parseTitleFromMetaData(metaBuffer, titleBuffer, titleBufferSize);
+	
     // Track URI
     PGM_P upath[] = { p_SoapEnvelope, p_SoapBody, p_GetPositionInfoR, p_TrackURI };
     ethClient_xPath(upath, 4, uriBuffer, uriBufferSize);
@@ -405,10 +420,65 @@ TrackInfo SonosUPnP::getTrackInfo(IPAddress speakerIP, char *uriBuffer, size_t u
     // Track position
     PGM_P ppath[] = { p_SoapEnvelope, p_SoapBody, p_GetPositionInfoR, p_RelTime };
     ethClient_xPath(ppath, 4, infoBuffer, sizeof(infoBuffer));
-    trackInfo.position = getTimeInSeconds(infoBuffer);
+    trackInfo.position = getTimeInSeconds(infoBuffer);	
+		
+	free(metaBuffer);
   }
   ethClient_stop();
   return trackInfo;
+}
+
+void SonosUPnP::parseTitleFromMetaData(char *metadata, char *titleBuffer, size_t titleBufferSize) {
+	
+	
+	decode_html_entities_utf8(metadata, NULL);
+		
+	
+	const char *titlePath[] = { "DIDL-Lite", "item", "dc:title" };
+	const char *artistPath[] = { "DIDL-Lite", "item", "dc:creator" };
+	
+		
+	xPath2.reset();
+	xPath2.setPath(titlePath,3);
+	
+	titleBuffer[0] = '\0';
+	bool foundTitle = false;
+	for(int i = 0; metadata[i] != '\0'; i++) {
+		if(xPath2.getValue(metadata[i], titleBuffer, titleBufferSize)) {
+			Serial.println("found title");
+			foundTitle = true;
+			break;	
+		}
+	}
+	
+	if(foundTitle) {
+		int titleLength = -1;
+		while(titleBuffer[++titleLength] != '\0');
+		
+		if(titleLength >= titleBufferSize-4)
+			return;
+		
+		titleBuffer[titleLength] = ' ';
+		titleLength++;
+		titleBuffer[titleLength] = '-';
+		titleLength++;
+		titleBuffer[titleLength] = ' ';
+		titleLength++;		
+		titleBuffer[titleLength] = '\0';
+		
+		size_t artistSize = titleBufferSize - titleLength;
+		char *artistBuffer = titleBuffer+titleLength;
+		xPath2.reset();
+		xPath2.setPath(artistPath,3);
+
+		for(int i = 0; metadata[i] != '\0'; i++) {
+			if(xPath2.getValue(metadata[i], artistBuffer, artistSize)) {
+				break;	
+			}
+		}
+	}
+	
+	decode_html_entities_utf8(titleBuffer, NULL);
 }
 
 uint16_t SonosUPnP::getTrackNumber(IPAddress speakerIP)

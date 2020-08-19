@@ -27,6 +27,7 @@
 #include "pgmspace.h"
 #ifndef SONOS_WRITE_ONLY_MODE
 #include "MicroXPath_P.h"
+#include "entities.h"
 #endif
 #include <ESP8266WiFi.h>
 
@@ -154,6 +155,7 @@
 #define SONOS_TAG_GET_POSITION_INFO_RESPONSE "u:GetPositionInfoResponse"
 #define SONOS_TAG_TRACK "Track"
 #define SONOS_TAG_TRACK_DURATION "TrackDuration"
+#define SONOS_TAG_TRACK_METADATA "TrackMetaData"
 #define SONOS_TAG_TRACK_URI "TrackURI"
 #define SONOS_TAG_REL_TIME "RelTime"
 #define SONOS_SOURCE_UNKNOWN 0
@@ -270,6 +272,7 @@ struct TrackInfo
   uint32_t duration;
   uint32_t position;
   char *uri;
+  char *title;
 };
 
 class SonosUPnP
@@ -318,7 +321,7 @@ class SonosUPnP
     uint8_t getPlayMode(IPAddress speakerIP);
     bool getRepeat(IPAddress speakerIP);
     bool getShuffle(IPAddress speakerIP);
-    TrackInfo getTrackInfo(IPAddress speakerIP, char *uriBuffer, size_t uriBufferSize);
+    TrackInfo getTrackInfo(IPAddress speakerIP, char *uriBuffer, size_t uriBufferSize, char *titleBuffer, size_t titleBufferSize);
     uint16_t getTrackNumber(IPAddress speakerIP);
     void getTrackURI(IPAddress speakerIP, char *resultBuffer, size_t resultBufferSize);
     uint8_t getSource(IPAddress speakerIP);
@@ -355,13 +358,14 @@ class SonosUPnP
 
     #ifndef SONOS_WRITE_ONLY_MODE
 
-    MicroXPath_P xPath;
+    MicroXPath_P xPath, xPath2;
     void ethClient_xPath(PGM_P *path, uint8_t pathSize, char *resultBuffer, size_t resultBufferSize);
     void upnpGetString(IPAddress speakerIP, uint8_t upnpMessageType, PGM_P action_P, const char *field, const char *value, PGM_P *path, uint8_t pathSize, char *resultBuffer, size_t resultBufferSize);
     uint32_t getTimeInSeconds(const char *time);
     uint32_t uiPow(uint16_t base, uint16_t exp);
     uint8_t convertState(const char *input);
     uint8_t convertPlayMode(const char *input);
+	void parseTitleFromMetaData(char *metadata, char *titleBuffer, size_t titleBufferSize);
 
     #endif
 };
